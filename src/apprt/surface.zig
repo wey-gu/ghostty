@@ -140,6 +140,10 @@ pub const Message = union(enum) {
     /// Report the progress of an action using a GUI element
     progress_report: terminal.osc.Command.ProgressReport,
 
+    /// An owned OSC 7501 report. The receiver frees it after the
+    /// action callback returns.
+    program_status: *@import("program_status.zig").Owned,
+
     /// A command has started in the shell, start a timer.
     start_command,
 

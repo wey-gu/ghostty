@@ -56,5 +56,6 @@ test {
     _ = Runtime;
     _ = runtime;
     _ = action;
+    _ = @import("apprt/program_status.zig");
     _ = structs;
 }
