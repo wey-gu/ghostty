@@ -939,7 +939,7 @@ pub const StreamHandler = struct {
 
         // The embedder drops program-status records on RIS. A clear
         // report would keep OSC 9;4 suppressed; this action does not.
-        if (self.program_status) self.surfaceMessageWriter(.full_reset);
+        if (self.program_status) self.surfaceMessageWriter(.{ .full_reset = self.surface_mailbox.surface.id });
     }
 
     /// Record a Kitty clipboard protocol session grant so future
@@ -1494,7 +1494,7 @@ pub const StreamHandler = struct {
             .fresh_line_new_prompt,
             .new_command,
             .prompt_start,
-            => if (self.program_status) self.surfaceMessageWriter(.shell_prompt),
+            => if (self.program_status) self.surfaceMessageWriter(.{ .shell_prompt = self.surface_mailbox.surface.id }),
 
             // Handled by Terminal, no special handling by us
             .end_prompt_start_input,
@@ -1958,7 +1958,7 @@ pub const StreamHandler = struct {
                 self.messageWriter(try termio.Message.writeReq(self.alloc, reply));
             },
             .report => |report| {
-                const owned = try program_status.Owned.create(self.alloc, report);
+                const owned = try program_status.Owned.create(self.alloc, report, self.surface_mailbox.surface.id);
                 self.surfaceMessageWriter(.{ .program_status = owned });
             },
         }

@@ -147,6 +147,10 @@ pub fn deinit(self: *App) void {
     for (self.surfaces.items) |surface| surface.deinit();
     self.surfaces.deinit(self.alloc);
 
+    // Surface IO producers have stopped. No queued protocol payload can
+    // be delivered now, but each still owns its report allocation.
+    discardProgramStatusMailbox(&self.mailbox);
+
     // Clean up our font group cache
     // We should have zero items in the grid set at this point because
     // destroy only gets called when the app is shutting down and this
@@ -157,6 +161,13 @@ pub fn deinit(self: *App) void {
     // Clean up our render device. This must happen after all surfaces
     // are gone since their renderers borrow it.
     self.device.deinit();
+}
+
+fn discardProgramStatusMailbox(queue: *Mailbox.Queue) void {
+    while (queue.pop(global.io())) |message| switch (message) {
+        .surface_message => |msg| msg.message.discardProgramStatus(),
+        else => {},
+    };
 }
 
 pub fn destroy(self: *App) void {
@@ -533,7 +544,10 @@ fn surfaceMessage(self: *App, surface: *Surface, msg: apprt.surface.Message) !vo
     // are quite rare and we normally don't have many windows so we do
     // a simple linear search here.
     if (self.hasSurface(surface)) {
+        if (!msg.acceptProgramStatus(surface.id)) return;
         try surface.handleMessage(msg);
+    } else {
+        msg.discardProgramStatus();
     }
 
     // Window was not found, it probably quit before we handled the message.
@@ -591,6 +605,27 @@ pub const Message = union(enum) {
         new_window,
     };
 };
+
+test "program status shutdown releases undelivered mailbox reports" {
+    const testing = std.testing;
+    var parser: @import("terminal/main.zig").osc.Parser = .init(testing.allocator);
+    defer parser.deinit();
+    parser.nextSlice("7501;state=done:msg=RG9uZQ==");
+    const report = parser.end('\x1b').?.program_status.report;
+    var queue: Mailbox.Queue = .{};
+    for (0..8) |i| {
+        const owned = try @import("apprt/program_status.zig").Owned.create(testing.allocator, report, i);
+        _ = queue.push(global.io(), .{
+            .surface_message = .{
+                // The discard path must never dereference a dead surface.
+                .surface = @ptrFromInt(@alignOf(Surface)),
+                .message = .{ .program_status = owned },
+            },
+        }, .instant);
+    }
+    discardProgramStatusMailbox(&queue);
+    try testing.expect(queue.pop(global.io()) == null);
+}
 
 /// Mailbox is the way that other threads send the app thread messages.
 pub const Mailbox = struct {
