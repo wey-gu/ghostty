@@ -102,6 +102,15 @@ pub const App = struct {
         /// support query is answered. Leave false until the action
         /// callback copies the borrowed report.
         program_status: bool = false,
+
+        /// Optional synchronous ingress, instead of main-thread actions.
+        /// See program_status.Ingress for its threading/lifetime contract.
+        program_status_callback: ?*const fn (
+            AppUD,
+            SurfaceUD,
+            @import("program_status.zig").Event,
+            ?*const @import("program_status.zig").Report,
+        ) callconv(.c) void = null,
     };
 
     /// This is the key event sent for ghostty_surface_key and

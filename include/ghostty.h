@@ -1137,6 +1137,21 @@ typedef bool (*ghostty_runtime_action_cb)(ghostty_app_t,
                                           ghostty_target_s,
                                           ghostty_action_s);
 
+typedef enum {
+  GHOSTTY_PROGRAM_STATUS_EVENT_REPORT = 0,
+  GHOSTTY_PROGRAM_STATUS_EVENT_PROMPT = 1,
+  GHOSTTY_PROGRAM_STATUS_EVENT_RESET = 2,
+} ghostty_program_status_event_e;
+
+// Optional IO-thread ingress instead of main-thread actions. Arguments are
+// app userdata, surface userdata, event, and a borrowed report (REPORT only).
+// Must copy fields before returning, remain bounded and thread-safe, and not
+// call Ghostty or UI APIs. Surface userdata stays alive until surface_free
+// joins IO; no callback can occur after surface_free returns.
+typedef void (*ghostty_runtime_program_status_cb)(
+    void*, void*, ghostty_program_status_event_e,
+    const ghostty_action_program_status_s*);
+
 typedef struct {
   void* userdata;
   bool supports_selection_clipboard;
@@ -1151,6 +1166,7 @@ typedef struct {
   // Leave false to discard reports and to not advertise support.
   // Strings in the action are valid only during the callback.
   bool program_status;
+  ghostty_runtime_program_status_cb program_status_cb;
 } ghostty_runtime_config_s;
 
 // apprt.ipc.Target.Key
