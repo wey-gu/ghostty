@@ -145,11 +145,11 @@ pub const Message = union(enum) {
     program_status: *@import("program_status.zig").Owned,
 
     /// A shell prompt started. Only queued when program status is enabled.
-    shell_prompt,
+    shell_prompt: u64,
 
     /// The terminal performed a full reset. Only queued when program
     /// status is enabled.
-    full_reset,
+    full_reset: u64,
 
     /// A command has started in the shell, start a timer.
     start_command,
@@ -170,6 +170,32 @@ pub const Message = union(enum) {
 
     /// Renderer pushed a new frame, redraw this surface.
     redraw,
+
+    /// Check protocol events against the immutable surface incarnation,
+    /// never just its address (the allocator may reuse a closed surface).
+    pub fn programStatusTarget(self: Message) ?u64 {
+        return switch (self) {
+            .program_status => |owned| owned.surface_id,
+            .shell_prompt, .full_reset => |id| id,
+            else => null,
+        };
+    }
+
+    /// Release the new owned protocol payload on undelivered paths.
+    pub fn discardProgramStatus(self: Message) void {
+        switch (self) {
+            .program_status => |owned| owned.deinit(),
+            else => {},
+        }
+    }
+
+    /// Called before delivery; a rejected report is consumed here.
+    pub fn acceptProgramStatus(self: Message, live_id: ?u64) bool {
+        const target = self.programStatusTarget() orelse return true;
+        if (live_id != null and live_id.? == target) return true;
+        self.discardProgramStatus();
+        return false;
+    }
 
     pub const ReportTitleStyle = enum {
         csi_21_t,
