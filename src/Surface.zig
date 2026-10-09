@@ -38,6 +38,7 @@ const internal_os = @import("os/main.zig");
 const inspectorpkg = @import("inspector/main.zig");
 const SurfaceMouse = @import("surface_mouse.zig");
 const ProcessInfo = @import("pty.zig").ProcessInfo;
+const build_config = @import("build_config.zig");
 
 const log = std.log.scoped(.surface);
 
@@ -696,6 +697,13 @@ pub fn init(
     // so we can just defer this and not the subcomponents.
     errdefer self.io.deinit();
 
+    // The IO thread reads this flag. Set it before that thread starts.
+    // Only the embedded runtime has the opt-in; the Ghostty app leaves
+    // it false so programs are not told that reports are handled.
+    if (comptime build_config.artifact == .lib) {
+        self.io.terminal_stream.handler.program_status = rt_app.opts.program_status;
+    }
+
     // Report initial cell size on surface creation
     _ = try rt_app.performAction(
         .{ .surface = self },
@@ -1150,6 +1158,17 @@ pub fn handleMessage(self: *Surface, msg: Message) !void {
                 v,
             ) catch |err| {
                 log.warn("apprt failed to report progress err={}", .{err});
+            };
+        },
+
+        .program_status => |owned| {
+            defer owned.deinit();
+            _ = self.rt_app.performAction(
+                .{ .surface = self },
+                .program_status,
+                .{ .report = &owned.report },
+            ) catch |err| {
+                log.warn("apprt failed to deliver program status err={}", .{err});
             };
         },
 

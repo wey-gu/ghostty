@@ -8,6 +8,7 @@ const renderer = @import("../renderer.zig");
 const terminal = @import("../terminal/main.zig");
 const CoreSurface = @import("../Surface.zig");
 const lib = @import("../lib/main.zig");
+const program_status = @import("program_status.zig");
 const compat_testing = @import("../lib/compat/testing.zig");
 
 /// The target for an action. This is generally the thing that had focus
@@ -364,6 +365,12 @@ pub const Action = union(Key) {
     /// split or the window is fullscreen.
     resize_window: ResizeWindow,
 
+    /// An OSC 7501 program status report. The pointer is valid only
+    /// during the action callback. Strings are empty, never null, when
+    /// the program omitted them. The embedder copies anything it keeps.
+    /// This is sent only when the runtime config opts in.
+    program_status: program_status.ActionValue,
+
     /// Sync with: ghostty_action_tag_e
     pub const Key = enum(c_int) {
         quit,
@@ -436,6 +443,7 @@ pub const Action = union(Key) {
         copy_title_to_clipboard,
         move_tab_to_new_window,
         resize_window,
+        program_status,
 
         test "ghostty.h Action.Key" {
             try lib.checkGhosttyHEnum(Key, "GHOSTTY_ACTION_");

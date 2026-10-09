@@ -14,7 +14,10 @@
 //! record completely. This parser only reads and validates one report at
 //! a time. Keeping records is up to the code that handles the command.
 //! In libghostty-vt, that is the `program_status` effect of
-//! `stream_terminal.Handler`.
+//! `stream_terminal.Handler`. In the full embedder API, reports are
+//! delivered as the `program_status` action only when
+//! `ghostty_runtime_config_s.program_status` is true. Otherwise the
+//! sequence is ignored and the support query is not answered.
 //!
 //! A program checks whether the terminal supports the protocol by sending
 //! `?` as the body. A terminal that supports it replies with the same

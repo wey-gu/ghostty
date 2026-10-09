@@ -97,6 +97,11 @@ pub const App = struct {
 
         /// Close the current surface given by this function.
         close_surface: ?*const fn (SurfaceUD, bool) callconv(.c) void = null,
+
+        /// When true, accepted OSC 7501 reports are delivered and the
+        /// support query is answered. Leave false until the action
+        /// callback copies the borrowed report.
+        program_status: bool = false,
     };
 
     /// This is the key event sent for ghostty_surface_key and

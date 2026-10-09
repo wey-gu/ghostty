@@ -14,6 +14,8 @@ const terminal = @import("../terminal/main.zig");
 const terminfo = @import("../terminfo/main.zig");
 const posix = std.posix;
 
+const program_status = @import("../apprt/program_status.zig");
+
 const log = std.log.scoped(.io_handler);
 
 /// This is used as the handler for the terminal.Stream type. This is
@@ -58,6 +60,12 @@ pub const StreamHandler = struct {
     /// Whether DECRQCRA may report the checksum of an area of the screen,
     /// and XTCHECKSUM may change how it's calculated.
     xt_checksum_report: bool,
+
+    /// When true, accepted OSC 7501 reports are copied and delivered, and
+    /// the support query is answered. Embedders set this before the IO
+    /// thread starts. Leave it false to discard reports and to not
+    /// advertise support.
+    program_status: bool = false,
 
     //---------------------------------------------------------------
     // Internal state
@@ -383,13 +391,13 @@ pub const StreamHandler = struct {
             .apc_put => self.apc.feed(self.alloc, value),
             .apc_put_slice => self.apc.feedSlice(self.alloc, value.bytes),
             .kitty_clipboard => try self.kittyClipboard(value),
+            .program_status => try self.programStatus(value),
 
             // Unimplemented
             .title_push,
             .title_pop,
             .kitty_dnd,
             .osc_unknown,
-            .program_status,
             => {},
         }
     }
@@ -1926,6 +1934,28 @@ pub const StreamHandler = struct {
     /// Display a GUI progress report.
     fn progressReport(self: *StreamHandler, report: terminal.osc.Command.ProgressReport) void {
         self.surfaceMessageWriter(.{ .progress_report = report });
+    }
+
+    /// Deliver an OSC 7501 report, or answer the support query.
+    ///
+    /// Reports are ignored and the query is not answered unless the
+    /// embedder opted in. The copied report outlives the parser buffer;
+    /// the surface frees it after the action callback returns.
+    fn programStatus(
+        self: *StreamHandler,
+        cmd: terminal.osc.Command.ProgramStatus,
+    ) !void {
+        if (!self.program_status) return;
+        switch (cmd) {
+            .query => |terminator| {
+                const reply = program_status.queryReply(terminator);
+                self.messageWriter(try termio.Message.writeReq(self.alloc, reply));
+            },
+            .report => |report| {
+                const owned = try program_status.Owned.create(self.alloc, report);
+                self.surfaceMessageWriter(.{ .program_status = owned });
+            },
+        }
     }
 };
 
