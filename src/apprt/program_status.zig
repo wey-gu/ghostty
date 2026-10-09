@@ -51,6 +51,58 @@ pub const Report = extern struct {
     app: lib.String,
     title: lib.String,
     message: lib.String,
+
+    /// Borrow parser fields and decode text into caller-owned scratch space.
+    pub fn init(
+        parsed: osc_program_status.Report,
+        title_buf: *[osc_program_status.max_title_bytes]u8,
+        message_buf: *[osc_program_status.max_msg_bytes]u8,
+    ) Report {
+        var title_writer: std.Io.Writer = .fixed(title_buf);
+        parsed.writeText(.title, &title_writer) catch unreachable;
+        var message_writer: std.Io.Writer = .fixed(message_buf);
+        parsed.writeText(.msg, &message_writer) catch unreachable;
+        return .{
+            .size = @sizeOf(Report),
+            .state = @enumFromInt(@intFromEnum(parsed.state)),
+            .kind = if (parsed.readOption(.kind)) |kind| switch (kind) {
+                .permission => .permission,
+                .question => .question,
+                .auth => .auth,
+            } else .none,
+            .progress = if (parsed.readOption(.progress)) |value| @intCast(value) else -1,
+            .id = .init(parsed.readOption(.id) orelse ""),
+            .app = .init(parsed.readOption(.app) orelse ""),
+            .title = .init(title_writer.buffered()),
+            .message = .init(message_writer.buffered()),
+        };
+    }
+};
+
+pub const Event = enum(c_int) {
+    report = 0,
+    prompt = 1,
+    reset = 2,
+};
+
+/// Optional IO-thread ingress. No report allocation or UI mailbox is needed.
+/// The callback must copy borrowed fields, remain bounded and never call
+/// Ghostty APIs or UI APIs. Userdata remains alive until surface IO joins.
+pub const Ingress = struct {
+    callback: *const fn (?*anyopaque, ?*anyopaque, Event, ?*const Report) callconv(.c) void,
+    app_userdata: ?*anyopaque,
+    surface_userdata: ?*anyopaque,
+
+    pub fn emit(self: Ingress, event: Event, report: ?*const Report) void {
+        self.callback(self.app_userdata, self.surface_userdata, event, report);
+    }
+
+    pub fn emitReport(self: Ingress, parsed: osc_program_status.Report) void {
+        var title: [osc_program_status.max_title_bytes]u8 = undefined;
+        var message: [osc_program_status.max_msg_bytes]u8 = undefined;
+        const borrowed = Report.init(parsed, &title, &message);
+        self.emit(.report, &borrowed);
+    }
 };
 
 /// Action payload. The C value is a pointer valid only during the callback.
@@ -258,4 +310,45 @@ test "program status rejects closed or replaced surface and frees reports" {
     try testing.expect(!(Message{ .shell_prompt = 42 }).acceptProgramStatus(43));
     try testing.expect(!(Message{ .full_reset = 42 }).acceptProgramStatus(null));
     try testing.expect((Message{ .full_reset = 42 }).acceptProgramStatus(42));
+}
+
+test "program status synchronous ingress preserves burst and lifecycle order" {
+    const testing = std.testing;
+    const Probe = struct {
+        count: usize = 0,
+        last: State = .idle,
+        lifecycle: [2]Event = undefined,
+        lifecycle_count: usize = 0,
+
+        fn receive(_: ?*anyopaque, userdata: ?*anyopaque, event: Event, report: ?*const Report) callconv(.c) void {
+            const self: *@This() = @ptrCast(@alignCast(userdata.?));
+            if (event == .report) {
+                self.count += 1;
+                self.last = report.?.state;
+            } else {
+                std.debug.assert(report == null);
+                self.lifecycle[self.lifecycle_count] = event;
+                self.lifecycle_count += 1;
+            }
+        }
+    };
+    var probe: Probe = .{};
+    const ingress: Ingress = .{
+        .callback = Probe.receive,
+        .app_userdata = null,
+        .surface_userdata = &probe,
+    };
+    var parser: terminal.osc.Parser = .init(testing.allocator);
+    defer parser.deinit();
+    parser.nextSlice("7501;state=working:id=build:msg=SGVsbG8=");
+    const report = parser.end('\x1b').?.program_status.report;
+    for (0..4096) |_| ingress.emitReport(report);
+    parser.reset();
+    parser.nextSlice("7501;state=clear");
+    ingress.emitReport(parser.end('\x1b').?.program_status.report);
+    ingress.emit(.prompt, null);
+    ingress.emit(.reset, null);
+    try testing.expectEqual(@as(usize, 4097), probe.count);
+    try testing.expectEqual(State.clear, probe.last);
+    try testing.expectEqualSlices(Event, &.{ .prompt, .reset }, &probe.lifecycle);
 }

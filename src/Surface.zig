@@ -702,6 +702,13 @@ pub fn init(
     // it false so programs are not told that reports are handled.
     if (comptime build_config.artifact == .lib) {
         self.io.terminal_stream.handler.program_status = rt_app.opts.program_status;
+        if (rt_app.opts.program_status_callback) |callback| {
+            self.io.terminal_stream.handler.program_status_ingress = .{
+                .callback = callback,
+                .app_userdata = rt_app.opts.userdata,
+                .surface_userdata = rt_surface.userdata,
+            };
+        }
     }
 
     // Report initial cell size on surface creation

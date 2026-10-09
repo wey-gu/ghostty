@@ -66,6 +66,7 @@ pub const StreamHandler = struct {
     /// thread starts. Leave it false to discard reports and to not
     /// advertise support.
     program_status: bool = false,
+    program_status_ingress: ?program_status.Ingress = null,
 
     //---------------------------------------------------------------
     // Internal state
@@ -939,7 +940,11 @@ pub const StreamHandler = struct {
 
         // The embedder drops program-status records on RIS. A clear
         // report would keep OSC 9;4 suppressed; this action does not.
-        if (self.program_status) self.surfaceMessageWriter(.{ .full_reset = self.surface_mailbox.surface.id });
+        if (self.program_status) {
+            if (self.program_status_ingress) |ingress| {
+                ingress.emit(.reset, null);
+            } else self.surfaceMessageWriter(.{ .full_reset = self.surface_mailbox.surface.id });
+        }
     }
 
     /// Record a Kitty clipboard protocol session grant so future
@@ -1494,7 +1499,11 @@ pub const StreamHandler = struct {
             .fresh_line_new_prompt,
             .new_command,
             .prompt_start,
-            => if (self.program_status) self.surfaceMessageWriter(.{ .shell_prompt = self.surface_mailbox.surface.id }),
+            => if (self.program_status) {
+                if (self.program_status_ingress) |ingress| {
+                    ingress.emit(.prompt, null);
+                } else self.surfaceMessageWriter(.{ .shell_prompt = self.surface_mailbox.surface.id });
+            },
 
             // Handled by Terminal, no special handling by us
             .end_prompt_start_input,
@@ -1958,6 +1967,10 @@ pub const StreamHandler = struct {
                 self.messageWriter(try termio.Message.writeReq(self.alloc, reply));
             },
             .report => |report| {
+                if (self.program_status_ingress) |ingress| {
+                    ingress.emitReport(report);
+                    return;
+                }
                 const owned = try program_status.Owned.create(self.alloc, report, self.surface_mailbox.surface.id);
                 self.surfaceMessageWriter(.{ .program_status = owned });
             },
