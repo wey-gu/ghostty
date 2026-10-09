@@ -1016,7 +1016,48 @@ typedef enum {
   GHOSTTY_ACTION_COPY_TITLE_TO_CLIPBOARD,
   GHOSTTY_ACTION_MOVE_TAB_TO_NEW_WINDOW,
   GHOSTTY_ACTION_RESIZE_WINDOW,
+  GHOSTTY_ACTION_PROGRAM_STATUS,
 } ghostty_action_tag_e;
+
+// Integer values match GhosttyProgramStatusState in
+// include/ghostty/vt/terminal.h.
+typedef enum {
+  GHOSTTY_ACTION_PROGRAM_STATUS_STATE_IDLE = 0,
+  GHOSTTY_ACTION_PROGRAM_STATUS_STATE_WORKING = 1,
+  GHOSTTY_ACTION_PROGRAM_STATUS_STATE_DONE = 2,
+  GHOSTTY_ACTION_PROGRAM_STATUS_STATE_BLOCKED = 3,
+  GHOSTTY_ACTION_PROGRAM_STATUS_STATE_ERROR = 4,
+  GHOSTTY_ACTION_PROGRAM_STATUS_STATE_CLEAR = 5,
+} ghostty_action_program_status_state_e;
+
+// Integer values match GhosttyProgramStatusKind. Zero means the program
+// didn't say, or the state isn't blocked.
+typedef enum {
+  GHOSTTY_ACTION_PROGRAM_STATUS_KIND_NONE = 0,
+  GHOSTTY_ACTION_PROGRAM_STATUS_KIND_PERMISSION = 1,
+  GHOSTTY_ACTION_PROGRAM_STATUS_KIND_QUESTION = 2,
+  GHOSTTY_ACTION_PROGRAM_STATUS_KIND_AUTH = 3,
+} ghostty_action_program_status_kind_e;
+
+// Layout-compatible with GhosttyTerminalProgramStatus. Strings are
+// borrowed and valid only during the action callback. Empty strings
+// have a non-NULL pointer and a length of 0. `size` is the struct size
+// so later versions can add fields at the end.
+typedef struct {
+  const uint8_t* ptr;
+  size_t len;
+} ghostty_action_program_status_string_s;
+
+typedef struct {
+  size_t size;
+  ghostty_action_program_status_state_e state;
+  ghostty_action_program_status_kind_e kind;
+  int8_t progress;
+  ghostty_action_program_status_string_s id;
+  ghostty_action_program_status_string_s app;
+  ghostty_action_program_status_string_s title;
+  ghostty_action_program_status_string_s message;
+} ghostty_action_program_status_s;
 
 typedef union {
   ghostty_action_split_direction_e new_split;
@@ -1060,6 +1101,8 @@ typedef union {
   ghostty_action_search_selected_s search_selected;
   ghostty_action_readonly_e readonly;
   ghostty_action_open_config_e open_config;
+  // Valid only during the action callback.
+  const ghostty_action_program_status_s* program_status;
 } ghostty_action_u;
 
 typedef struct {
@@ -1099,6 +1142,11 @@ typedef struct {
   ghostty_runtime_confirm_read_clipboard_cb confirm_read_clipboard_cb;
   ghostty_runtime_write_clipboard_cb write_clipboard_cb;
   ghostty_runtime_close_surface_cb close_surface_cb;
+  // When true, accepted OSC 7501 reports are delivered as
+  // GHOSTTY_ACTION_PROGRAM_STATUS and the support query is answered.
+  // Leave false to discard reports and to not advertise support.
+  // Strings in the action are valid only during the callback.
+  bool program_status;
 } ghostty_runtime_config_s;
 
 // apprt.ipc.Target.Key

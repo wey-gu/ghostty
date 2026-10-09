@@ -76,7 +76,8 @@ extension Ghostty {
                         request: request) },
                 write_clipboard_cb: { userdata, loc, content, len, confirm in
                     App.writeClipboard(userdata, location: loc, content: content, len: len, confirm: confirm) },
-                close_surface_cb: { userdata, processAlive in App.closeSurface(userdata, processAlive: processAlive) }
+                close_surface_cb: { userdata, processAlive in App.closeSurface(userdata, processAlive: processAlive) },
+                program_status: false
             )
 
             // Create the ghostty app.
@@ -781,6 +782,11 @@ extension Ghostty {
 
             case GHOSTTY_ACTION_COPY_TITLE_TO_CLIPBOARD:
                 return copyTitleToClipboard(app, target: target)
+
+            case GHOSTTY_ACTION_PROGRAM_STATUS:
+                // The macOS app does not opt in. An embedder that sets
+                // program_status on the runtime config handles this.
+                return false
 
             default:
                 Ghostty.logger.warning("unknown action action=\(action.tag.rawValue, privacy: .public)")
