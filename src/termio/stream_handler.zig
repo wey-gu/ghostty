@@ -936,6 +936,10 @@ pub const StreamHandler = struct {
 
         // Clear the progress bar
         self.progressReport(.{ .state = .remove });
+
+        // The embedder drops program-status records on RIS. A clear
+        // report would keep OSC 9;4 suppressed; this action does not.
+        if (self.program_status) self.surfaceMessageWriter(.full_reset);
     }
 
     /// Record a Kitty clipboard protocol session grant so future
@@ -1487,13 +1491,15 @@ pub const StreamHandler = struct {
                 self.surfaceMessageWriter(.{ .stop_command = code });
             },
 
+            .fresh_line_new_prompt,
+            .new_command,
+            .prompt_start,
+            => if (self.program_status) self.surfaceMessageWriter(.shell_prompt),
+
             // Handled by Terminal, no special handling by us
             .end_prompt_start_input,
             .end_prompt_start_input_terminate_eol,
             .fresh_line,
-            .fresh_line_new_prompt,
-            .new_command,
-            .prompt_start,
             => {},
         }
 

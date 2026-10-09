@@ -788,6 +788,9 @@ extension Ghostty {
                 // program_status on the runtime config handles this.
                 return false
 
+            case GHOSTTY_ACTION_SHELL_PROMPT, GHOSTTY_ACTION_FULL_RESET:
+                return false
+
             default:
                 Ghostty.logger.warning("unknown action action=\(action.tag.rawValue, privacy: .public)")
                 return false

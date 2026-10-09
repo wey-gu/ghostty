@@ -1172,6 +1172,26 @@ pub fn handleMessage(self: *Surface, msg: Message) !void {
             };
         },
 
+        .shell_prompt => {
+            _ = self.rt_app.performAction(
+                .{ .surface = self },
+                .shell_prompt,
+                {},
+            ) catch |err| {
+                log.warn("apprt failed to deliver shell prompt err={}", .{err});
+            };
+        },
+
+        .full_reset => {
+            _ = self.rt_app.performAction(
+                .{ .surface = self },
+                .full_reset,
+                {},
+            ) catch |err| {
+                log.warn("apprt failed to deliver full reset err={}", .{err});
+            };
+        },
+
         .selection_scroll_tick => |active| {
             self.selection_scroll_active = active;
             try self.selectionScrollTick();
