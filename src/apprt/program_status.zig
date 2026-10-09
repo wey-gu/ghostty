@@ -69,11 +69,13 @@ pub const ActionValue = struct {
 pub const Owned = struct {
     alloc: Allocator,
     bytes: []u8,
+    surface_id: u64,
     report: Report,
 
     pub fn create(
         alloc: Allocator,
         report: osc_program_status.Report,
+        surface_id: u64,
     ) Allocator.Error!*Owned {
         var title_buf: [osc_program_status.max_title_bytes]u8 = undefined;
         var title_writer: std.Io.Writer = .fixed(&title_buf);
@@ -104,6 +106,7 @@ pub const Owned = struct {
         owned.* = .{
             .alloc = alloc,
             .bytes = bytes,
+            .surface_id = surface_id,
             .report = .{
                 .size = @sizeOf(Report),
                 .state = @enumFromInt(@intFromEnum(report.state)),
@@ -152,7 +155,7 @@ fn parseOwned(alloc: Allocator, body: []const u8) !*Owned {
     defer p.deinit();
     p.nextSlice(body);
     // Copy before the parser buffer is freed.
-    return try Owned.create(alloc, p.end('\x1b').?.program_status.report);
+    return try Owned.create(alloc, p.end('\x1b').?.program_status.report, 42);
 }
 
 test "program status report matches libghostty-vt field order" {
@@ -189,7 +192,7 @@ test "program status copy outlives the parser buffer" {
     );
     while (chunks.next()) |chunk| p.nextSlice(chunk);
     const parsed = p.end('\x1b').?.program_status.report;
-    const owned = try Owned.create(testing.allocator, parsed);
+    const owned = try Owned.create(testing.allocator, parsed, 42);
     defer owned.deinit();
 
     p.reset();
@@ -240,4 +243,19 @@ test "program status query reply uses the request terminator" {
     const testing = std.testing;
     try testing.expectEqualStrings("\x1b]7501;?\x1b\\", queryReply(.st));
     try testing.expectEqualStrings("\x1b]7501;?\x07", queryReply(.bel));
+}
+
+test "program status rejects closed or replaced surface and frees reports" {
+    const testing = std.testing;
+    const Message = @import("surface.zig").Message;
+    const closed = try parseOwned(testing.allocator, "7501;state=done:msg=RG9uZQ==");
+    try testing.expect(!(Message{ .program_status = closed }).acceptProgramStatus(null));
+    const replaced = try parseOwned(testing.allocator, "7501;state=working");
+    try testing.expect(!(Message{ .program_status = replaced }).acceptProgramStatus(43));
+    const live = try parseOwned(testing.allocator, "7501;state=done");
+    defer live.deinit();
+    try testing.expect((Message{ .program_status = live }).acceptProgramStatus(42));
+    try testing.expect(!(Message{ .shell_prompt = 42 }).acceptProgramStatus(43));
+    try testing.expect(!(Message{ .full_reset = 42 }).acceptProgramStatus(null));
+    try testing.expect((Message{ .full_reset = 42 }).acceptProgramStatus(42));
 }
