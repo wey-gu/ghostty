@@ -819,6 +819,8 @@ pub const Application = extern struct {
             .undo,
             .redo,
             .program_status,
+            .shell_prompt,
+            .full_reset,
             => {
                 log.warn("unimplemented action={}", .{action});
                 return false;

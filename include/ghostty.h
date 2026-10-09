@@ -1017,6 +1017,10 @@ typedef enum {
   GHOSTTY_ACTION_MOVE_TAB_TO_NEW_WINDOW,
   GHOSTTY_ACTION_RESIZE_WINDOW,
   GHOSTTY_ACTION_PROGRAM_STATUS,
+  // OSC 133 prompt start. Sent only when program_status is enabled.
+  GHOSTTY_ACTION_SHELL_PROMPT,
+  // RIS (ESC c). Sent only when program_status is enabled.
+  GHOSTTY_ACTION_FULL_RESET,
 } ghostty_action_tag_e;
 
 // Integer values match GhosttyProgramStatusState in

@@ -371,6 +371,15 @@ pub const Action = union(Key) {
     /// This is sent only when the runtime config opts in.
     program_status: program_status.ActionValue,
 
+    /// A shell prompt started (OSC 133 A, and the prompt-start forms
+    /// Ghostty already reports the same way). Sent only when the
+    /// embedder opted into program status. No payload.
+    shell_prompt,
+
+    /// Full reset (RIS, ESC c). Sent only when the embedder opted into
+    /// program status, after the terminal has already reset. No payload.
+    full_reset,
+
     /// Sync with: ghostty_action_tag_e
     pub const Key = enum(c_int) {
         quit,
@@ -444,6 +453,8 @@ pub const Action = union(Key) {
         move_tab_to_new_window,
         resize_window,
         program_status,
+        shell_prompt,
+        full_reset,
 
         test "ghostty.h Action.Key" {
             try lib.checkGhosttyHEnum(Key, "GHOSTTY_ACTION_");

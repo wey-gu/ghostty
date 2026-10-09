@@ -144,6 +144,13 @@ pub const Message = union(enum) {
     /// action callback returns.
     program_status: *@import("program_status.zig").Owned,
 
+    /// A shell prompt started. Only queued when program status is enabled.
+    shell_prompt,
+
+    /// The terminal performed a full reset. Only queued when program
+    /// status is enabled.
+    full_reset,
+
     /// A command has started in the shell, start a timer.
     start_command,
 
