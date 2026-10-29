@@ -64,7 +64,7 @@ pub const Report = extern struct {
         parsed.writeText(.msg, &message_writer) catch unreachable;
         return .{
             .size = @sizeOf(Report),
-            .state = @enumFromInt(@intFromEnum(parsed.state)),
+            .state = @fromBackingInt(@backingInt(parsed.state)),
             .kind = if (parsed.readOption(.kind)) |kind| switch (kind) {
                 .permission => .permission,
                 .question => .question,
@@ -161,7 +161,7 @@ pub const Owned = struct {
             .surface_id = surface_id,
             .report = .{
                 .size = @sizeOf(Report),
-                .state = @enumFromInt(@intFromEnum(report.state)),
+                .state = @fromBackingInt(@backingInt(report.state)),
                 .kind = if (report.readOption(.kind)) |kind| switch (kind) {
                     .permission => .permission,
                     .question => .question,
