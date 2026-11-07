@@ -39,7 +39,8 @@ pub const Kind = enum(c_int) {
     }
 };
 
-/// Layout-compatible with `GhosttyTerminalProgramStatus`.
+/// Embedded bridge payload with its own size-prefixed ABI.
+/// libghostty-vt 1.0 uses a separate fixed-layout report without the size field.
 ///
 /// C type: ghostty_action_program_status_s
 pub const Report = extern struct {
@@ -210,7 +211,7 @@ fn parseOwned(alloc: Allocator, body: []const u8) !*Owned {
     return try Owned.create(alloc, p.end('\x1b').?.program_status.report, 42);
 }
 
-test "program status report matches libghostty-vt field order" {
+test "program status report preserves embedded size-prefixed ABI" {
     const testing = std.testing;
     try testing.expectEqual(@sizeOf(usize), @offsetOf(Report, "state"));
     try testing.expectEqual(@sizeOf(usize) + @sizeOf(c_int), @offsetOf(Report, "kind"));
